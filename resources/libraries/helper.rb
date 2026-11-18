@@ -9,13 +9,13 @@ module Sflow2kafka
     # Builds the x2kafka config of redborder-sflow2kafka. It replaces the logstash sflow
     # direction and enrichment steps. x2kafka enriches each flow with the whole
     # enrichment_map entry matching the exporter IP, so every sensor IP gets one
-    # flat entry. home_nets and span_port are per listener in x2kafka, so they
-    # are merged across all the sensors.
+    # flat entry. Each sensor carries its own home_nets in its entry (x2kafka uses
+    # them for the direction of its flows and does not add them to the events).
+    # span_port is per listener in x2kafka, so it is merged across all the sensors.
     # settings: bind, brokers, topic and memory (KB) of the resource. The ports come from the
     # node['redborder-sflow2kafka'] attributes.
     def x2kafka_config(sensors, settings)
       enrichment_map = {}
-      home_nets = []
       span_ports = []
 
       sensors.keys.sort.each do |sensor|
@@ -46,20 +46,23 @@ module Sflow2kafka
         DOMAIN_FIELDS.each do |field|
           enrichment[field] = rb[field] unless rb[field].to_s.empty?
         end
-        enrichment_map[ip] = enrichment
-
         span_ports << (rb['spanport'].to_i == 1)
 
+        home_nets = []
         Array(rb['homenets']).each do |homenet|
           network = homenet['value'].to_s.strip
           begin
             IPAddr.new(network)
             home_nets << network
           rescue IPAddr::Error
-            # a single invalid CIDR makes x2kafka drop all the home_nets
+            # an invalid CIDR makes x2kafka ignore all the home_nets of the sensor
             Chef::Log.warn("redborder-sflow2kafka: ignoring invalid homenet '#{network}' of #{sensor}")
           end
         end
+        # without its own home_nets the sensor falls back to the private ranges
+        enrichment['home_nets'] = home_nets.uniq unless home_nets.empty?
+
+        enrichment_map[ip] = enrichment
       end
 
       listener = {
@@ -75,8 +78,6 @@ module Sflow2kafka
         'enrichment_key' => 'sensor_ip',
         'enrichment_map' => enrichment_map,
       }
-      # without home_nets x2kafka falls back to the private ranges
-      listener['home_nets'] = home_nets.uniq unless home_nets.empty?
 
       config = {
         'brokers' => settings[:brokers],
