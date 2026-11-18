@@ -86,12 +86,12 @@ end
 
 action :register do
   begin
-    unless node['sflow2kafka']['registered']
+    unless node['redborder-sflow2kafka']['registered']
       query = {}
-      query['ID'] = "sflow2kafka-#{node['hostname']}"
-      query['Name'] = 'sflow2kafka'
+      query['ID'] = "redborder-sflow2kafka-#{node['hostname']}"
+      query['Name'] = 'redborder-sflow2kafka'
       query['Address'] = "#{node['ipaddress']}"
-      query['Port'] = node['sflow2kafka']['port'].to_s
+      query['Port'] = node['redborder-sflow2kafka']['port'].to_s
       json_query = Chef::JSONCompat.to_json(query)
 
       execute 'Register service in consul' do
@@ -99,8 +99,8 @@ action :register do
         action :nothing
       end.run_action(:run)
 
-      node.normal['sflow2kafka']['registered'] = true
-      Chef::Log.info('sflow2kafka service has been registered in consul')
+      node.normal['redborder-sflow2kafka']['registered'] = true
+      Chef::Log.info('redborder-sflow2kafka service has been registered in consul')
     end
   rescue => e
     Chef::Log.error(e.message)
@@ -109,14 +109,14 @@ end
 
 action :deregister do
   begin
-    if node['sflow2kafka']['registered']
+    if node['redborder-sflow2kafka']['registered']
       execute 'Deregister service in consul' do
-        command "curl -X PUT http://localhost:8500/v1/agent/service/deregister/sflow2kafka-#{node['hostname']} &>/dev/null"
+        command "curl -X PUT http://localhost:8500/v1/agent/service/deregister/redborder-sflow2kafka-#{node['hostname']} &>/dev/null"
         action :nothing
       end.run_action(:run)
 
-      node.normal['sflow2kafka']['registered'] = false
-      Chef::Log.info('sflow2kafka service has been deregistered from consul')
+      node.normal['redborder-sflow2kafka']['registered'] = false
+      Chef::Log.info('redborder-sflow2kafka service has been deregistered from consul')
     end
   rescue => e
     Chef::Log.error(e.message)
